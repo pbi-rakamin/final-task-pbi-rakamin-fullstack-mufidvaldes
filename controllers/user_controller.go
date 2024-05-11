@@ -3,6 +3,7 @@ package controllers
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"example.com/g-auth/database"
 	"example.com/g-auth/models"
@@ -127,10 +128,14 @@ func UpdateUser(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "Failed to update user"})
 		return
 	}
-	// Menghapus kredensial yang lama
-	c.SetCookie("jwt", "", -1, "", "", false, true)
+	// Generate new JWT token
+	newToken, err := generateToken(user.ID)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to generate new token"})
+		return
+	}
 
-	c.JSON(200, gin.H{"data": user})
+	c.JSON(200, gin.H{"data": user, "token": newToken})
 }
 
 // DeleteUser deletes a user
@@ -169,10 +174,11 @@ func DeleteUser(c *gin.Context) {
 
 // generateToken generates JWT token for user authentication
 func generateToken(userID uint) (string, error) {
-	token := jwt.New(jwt.SigningMethodHS256)
-	claims := token.Claims.(jwt.MapClaims)
-	claims["userID"] = userID
-
+	claims := jwt.MapClaims{
+		"userID": userID,
+		"exp":    time.Now().Add(time.Hour * 24).Unix(), // Token expires in 24 hours
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	// Generate encoded token and send it as response
 	return token.SignedString([]byte("secret-key"))
 }
